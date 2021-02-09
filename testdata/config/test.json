@@ -1,0 +1,20 @@
+{
+  "common": {
+    "public_base_uri": "https://app.dev.alwaysreach.net/public"
+  },
+  "landing": {
+    "test-sample": {
+      "client_id": "oauth.client.id",
+      "username": "apidude",
+      "password": "therug",
+      "programs": {
+        "test-program": {
+          "organization_name": "test-org",
+          "organization_id": 987,
+          "user_type_id": 654,
+          "pro_ids": ["pro1", "pro2"]
+        }
+      }
+    }
+  }
+}

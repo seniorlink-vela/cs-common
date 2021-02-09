@@ -1,0 +1,54 @@
+name: Vela CS Common Library
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  build:
+    env:
+      VERSION: v1.0.0
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: ^1.15
+      id: go
+
+    - name: Install tools
+      run: go get gotest.tools/gotestsum
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
+
+    - name: Cache dependencies
+      uses: actions/cache@v2
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ hashFiles('**/go.sum') }}
+
+    - name: Test
+      run: |
+        gotestsum --junitfile test-report.xml
+
+    - name: Tag Build
+      run: |
+        export VERSION_TAG=$VERSION-$(date +%s%3N)
+        git tag $VERSION_TAG
+        git push --tags
+      if: ${{ success() && github.ref == 'refs/heads/main' }}
+
+    - uses: ashley-taylor/junit-report-annotations-action@master
+      with:
+        name: Test Results
+        path: test-report.xml
+        includeSummary: true
+        numFailures: 5
+        access-token: ${{ secrets.GITHUB_TOKEN }}
+      if: always()
