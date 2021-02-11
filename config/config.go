@@ -20,10 +20,11 @@ func Current() *Config {
 }
 
 type Program struct {
-	OrganizationName string   `json:"organization_name"`
-	OrganizationID   int      `json:"organization_id"`
-	UserTypeID       int      `json:"user_type_id"`
-	ProIDs           []string `json:"pro_ids"`
+	OrganizationName    string   `json:"organization_name"`
+	OrganizationID      int      `json:"organization_id"`
+	UserTypeID          int      `json:"user_type_id"`
+	CaregiverUserTypeID int      `json:"caregiver_user_type_id"`
+	ProIDs              []string `json:"pro_ids"`
 }
 
 type LandingConfig struct {
