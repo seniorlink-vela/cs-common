@@ -293,10 +293,14 @@ func (p *Profile) AuthorizeCareRoom(ctx context.Context, careTeamID string) erro
 	requestID := velacontext.GetContextRequestID(ctx)
 
 	url := fmt.Sprintf("%s/api/v1/admin/care-teams/%s/authorize", conf.Common.PublicBaseURI, careTeamID)
-	var authJsonTmpl = `{"authorize": {"authorized": true, "authorized_at": "%s", "authorized_by": "%s" }}`
-	jsonStr := fmt.Sprintf(authJsonTmpl, time.Now().UTC(), p.ID)
-	jsonMap := make(map[string]interface{})
-	err := json.Unmarshal([]byte(jsonStr), &jsonMap)
+
+	jsonMap := map[string]interface{}{
+		"authorize": map[string]interface{}{
+			"authorized":    true,
+			"authorized_at": time.Now().UTC(),
+			"authorized_by": p.ID,
+		},
+	}
 	jsonValue, _ := json.Marshal(jsonMap)
 
 	request, rerr := http.NewRequest("POST", url, bytes.NewBuffer(jsonValue))
