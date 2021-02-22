@@ -396,6 +396,7 @@ func (p *Profile) UserExistsForEmail(ctx context.Context, token string, email st
 	if response.StatusCode == http.StatusNotFound {
 		return false, nil
 	}
+
 	// otherwise we found them so unmarshall into class and return true
 	body := map[string]Profile{
 		"user_profile": *p,
