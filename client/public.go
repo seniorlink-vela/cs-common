@@ -368,13 +368,12 @@ func (p *Profile) AddProfessionals(ctx context.Context, careTeamID string, proID
 // Non-nil error indicates failure of the call; true, nil means you found them, false, nil means they were not found
 // Could also return the whole object, but this is a start
 // Could also pass in the conf - but I stayed with existing pattern
-func UserExistsForEmail(ctx context.Context, token string, email string) (bool, error) {
+func (p *Profile) UserExistsForEmail(ctx context.Context, token string, email string) (bool, error) {
 	defer func() {
 		go clientTransport.CloseIdleConnections()
 	}()
 	conf := config.Current()
 	requestID := velacontext.GetContextRequestID(ctx)
-
 	url := fmt.Sprintf("%s/api/v1/admin/user-profiles/by-reference/email/%s", conf.Common.PublicBaseURI, email)
 	request, _ := http.NewRequest("GET", url, nil)
 	request.Header.Set("Content-Type", "application/json")
@@ -385,12 +384,7 @@ func UserExistsForEmail(ctx context.Context, token string, email string) (bool, 
 		return false, err
 	}
 	data, _ := ioutil.ReadAll(response.Body)
-
 	defer response.Body.Close()
-
-	if response.StatusCode == http.StatusNotFound {
-		return false, nil
-	}
 	if response.StatusCode != http.StatusOK {
 		var errResp HttpClientError
 		if err = json.Unmarshal(data, &errResp); err != nil {
@@ -399,6 +393,15 @@ func UserExistsForEmail(ctx context.Context, token string, email string) (bool, 
 		errResp.Path = url
 		return false, errResp
 	}
-	// otherwise we found them
+	if response.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	// otherwise we found them so unmarshall into class and return true
+	body := map[string]Profile{
+		"user_profile": *p,
+	}
+	if err = json.Unmarshal(data, &body); err != nil {
+		return false, err
+	}
 	return true, nil
 }
