@@ -107,6 +107,10 @@ type Profile struct {
 	Program              string            `json:"program" validation:"required"`
 }
 
+type ProfileResponse struct {
+	P Profile `json:"user_profile"`
+}
+
 func (p *Profile) Validate() error {
 	var validationError = ErrorMap{}
 	_ = validation.ValidateStruct(*p, validationError)
@@ -398,10 +402,25 @@ func (p *Profile) UserExistsForEmail(ctx context.Context, token string, email st
 	}
 
 	// otherwise we found them so unmarshall into class and return true
-	body := map[string]Profile{
-		"user_profile": *p,
-	}
-	if err = json.Unmarshal(data, &body); err != nil {
+	/*
+		body := map[string]Profile{
+			"user_profile": *p,
+		}
+	*/
+	var pr ProfileResponse
+
+	/*
+		if err = json.Unmarshal(data, &body); err != nil {
+			return false, err
+		}
+	*/
+	if err = json.Unmarshal(data, &pr); err != nil {
+		fmt.Printf("*** User Exists for Email PR = %#v \n", pr)
+		if pr.P.Username != nil {
+			fmt.Printf("*** username is %s in UserExists for Email\n", *pr.P.Username)
+		} else {
+			fmt.Printf("*** username is nil in UserExists for Email\n")
+		}
 		return false, err
 	}
 	return true, nil
