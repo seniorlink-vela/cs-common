@@ -370,7 +370,7 @@ func (p *Profile) AddProfessionals(ctx context.Context, careTeamID string, proID
 }
 
 // Non-nil error indicates failure of the call; true, nil means you found them, false, nil means they were not found
-// Could also return the whole object, but this is a start
+// Updates the Profile with values returned from the call
 // Could also pass in the conf - but I stayed with existing pattern
 func (p *Profile) UserExistsForEmail(ctx context.Context, token string, email string) (bool, error) {
 	defer func() {
