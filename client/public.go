@@ -107,6 +107,10 @@ type Profile struct {
 	Program              string            `json:"program" validation:"required"`
 }
 
+type ProfileResponse struct {
+	P Profile `json:"user_profile"`
+}
+
 func (p *Profile) Validate() error {
 	var validationError = ErrorMap{}
 	_ = validation.ValidateStruct(*p, validationError)
@@ -363,4 +367,47 @@ func (p *Profile) AddProfessionals(ctx context.Context, careTeamID string, proID
 		}
 	}
 	return nil
+}
+
+// Non-nil error indicates failure of the call; true, nil means you found them, false, nil means they were not found
+// Updates the Profile with values returned from the call
+// Could also pass in the conf - but I stayed with existing pattern
+func (p *Profile) UserExistsForEmail(ctx context.Context, token string, email string) (bool, error) {
+	defer func() {
+		go clientTransport.CloseIdleConnections()
+	}()
+	conf := config.Current()
+	requestID := velacontext.GetContextRequestID(ctx)
+	url := fmt.Sprintf("%s/api/v1/admin/user-profiles/by-reference/email/%s", conf.Common.PublicBaseURI, email)
+	request, _ := http.NewRequest("GET", url, nil)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Add("X-Vela-Request-Id", requestID)
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	response, err := apiClient.Do(request)
+	if err != nil || response == nil {
+		return false, err
+	}
+	data, _ := ioutil.ReadAll(response.Body)
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		var errResp HttpClientError
+		if err = json.Unmarshal(data, &errResp); err != nil {
+			return false, err
+		}
+		errResp.Path = url
+		return false, errResp
+	}
+	if response.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+
+	// otherwise we found them so unmarshall into class and return true
+	var pr ProfileResponse
+	if err = json.Unmarshal(data, &pr); err != nil {
+		return false, err
+	}
+
+	// assign the returned values into my profile struct
+	*p = pr.P
+	return true, nil
 }
