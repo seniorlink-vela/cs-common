@@ -389,6 +389,11 @@ func (p *Profile) UserExistsForEmail(ctx context.Context, token string, email st
 	}
 	data, _ := ioutil.ReadAll(response.Body)
 	defer response.Body.Close()
+
+	if response.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+
 	if response.StatusCode != http.StatusOK {
 		var errResp HttpClientError
 		if err = json.Unmarshal(data, &errResp); err != nil {
@@ -396,9 +401,6 @@ func (p *Profile) UserExistsForEmail(ctx context.Context, token string, email st
 		}
 		errResp.Path = url
 		return false, errResp
-	}
-	if response.StatusCode == http.StatusNotFound {
-		return false, nil
 	}
 
 	// otherwise we found them so unmarshall into class and return true
