@@ -369,7 +369,7 @@ func (p *Profile) AddProfessionals(ctx context.Context, careTeamID string, proID
 	return nil
 }
 
-func (p *Profile) AddCareGivers(ctx context.Context, careTeamID string, cgIDs []string) error {
+func (p *Profile) AddCareGiversToCareTeam(ctx context.Context, careTeamID string, cgIDs []string) error {
 	defer func() {
 		go clientTransport.CloseIdleConnections()
 	}()
