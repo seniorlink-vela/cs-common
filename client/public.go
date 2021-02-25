@@ -232,7 +232,7 @@ func (p *Profile) CreateProfile(ctx context.Context) error {
 			errMap := ErrorMap{}
 			for _, f := range errResp.Fields {
 				fn := strings.Split(f.Name, ":")
-				errMap.AppendErrorField(fn[1], f.Message)
+				errMap.AppendErrorField(fn[0], f.Message)
 			}
 			return errMap
 		}
