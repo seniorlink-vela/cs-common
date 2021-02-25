@@ -369,6 +369,44 @@ func (p *Profile) AddProfessionals(ctx context.Context, careTeamID string, proID
 	return nil
 }
 
+func (p *Profile) AddCareGivers(ctx context.Context, careTeamID string, cgIDs []string) error {
+	defer func() {
+		go clientTransport.CloseIdleConnections()
+	}()
+	conf := config.Current()
+	requestID := velacontext.GetContextRequestID(ctx)
+
+	url := fmt.Sprintf("%s/api/v1/admin/care-teams/%s/member", conf.Common.PublicBaseURI, careTeamID)
+	newMemberTmpl := `{"member":{"user_id": "%s", "owner_type": "Caregiver"}}`
+
+	for _, proID := range cgIDs {
+		jsonStr := fmt.Sprintf(newMemberTmpl, proID)
+
+		request, rerr := http.NewRequest("POST", url, bytes.NewBuffer([]byte(jsonStr)))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Add("X-Vela-Request-Id", requestID)
+		request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", p.AccessToken))
+		response, err := apiClient.Do(request)
+		if rerr != nil || err != nil || response == nil {
+			return err
+		}
+		var dat map[string]interface{}
+		data, _ := ioutil.ReadAll(response.Body)
+		if err = json.Unmarshal(data, &dat); err != nil {
+			return err
+		}
+		if response.StatusCode != http.StatusOK {
+			var errResp HttpClientError
+			if err = json.Unmarshal(data, &errResp); err != nil {
+				return err
+			}
+			errResp.Path = url
+			return errResp
+		}
+	}
+	return nil
+}
+
 // Non-nil error indicates failure of the call; true, nil means you found them, false, nil means they were not found
 // Updates the Profile with values returned from the call
 // Could also pass in the conf - but I stayed with existing pattern
