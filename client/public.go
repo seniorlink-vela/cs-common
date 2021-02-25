@@ -232,7 +232,7 @@ func (p *Profile) CreateProfile(ctx context.Context) error {
 			errMap := ErrorMap{}
 			for _, f := range errResp.Fields {
 				fn := strings.Split(f.Name, ":")
-				errMap.AppendErrorField(fn[0], f.Message)
+				errMap.AppendErrorField(fn[len(fn)-1], f.Message)
 			}
 			return errMap
 		}
@@ -383,6 +383,9 @@ func (p *Profile) AddCareGiversToCareTeam(ctx context.Context, careTeamID string
 		jsonStr := fmt.Sprintf(newMemberTmpl, proID)
 
 		request, rerr := http.NewRequest("POST", url, bytes.NewBuffer([]byte(jsonStr)))
+		if rerr != nil {
+			return rerr
+		}
 		request.Header.Set("Content-Type", "application/json")
 		request.Header.Add("X-Vela-Request-Id", requestID)
 		request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", p.AccessToken))
