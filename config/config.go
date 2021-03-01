@@ -36,7 +36,8 @@ type LandingConfig struct {
 }
 
 type CommonConfig struct {
-	PublicBaseURI string `mapstructure:"public_base_uri" json:"public_base_uri"`
+	PublicBaseURI string            `mapstructure:"public_base_uri" json:"public_base_uri"`
+	Redirects     map[string]string `mapstructure:"redirects"`
 }
 
 type Config struct {
