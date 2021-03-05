@@ -105,3 +105,26 @@ func HandleStaticALB(ctx context.Context, req events.ALBTargetGroupRequest) (*ev
 	// found here is being handled by another handler
 	return nil, nil
 }
+
+func GetResponseByPath(ctx context.Context, path string) (*events.ALBTargetGroupResponse, error) {
+
+	fd, ok := staticURLs[path]
+
+	if ok {
+		resp := &events.ALBTargetGroupResponse{
+			StatusCode:        http.StatusOK,
+			StatusDescription: http.StatusText(http.StatusOK),
+			Body:              fd.Contents,
+			IsBase64Encoded:   fd.IsBinary,
+			Headers: map[string]string{
+				"Content-Type":  fd.MimeType,
+				"Cache-Control": "public, max-age=604800, immutable",
+			},
+		}
+		return resp, nil
+	}
+	// This returns a `nil` error when the path isn't found, as this is by design meant
+	// to be called before any other path handling.  The assumption is that any path not
+	// found here is being handled by another handler
+	return nil, nil
+}
