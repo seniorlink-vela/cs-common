@@ -56,7 +56,13 @@ func LoadConfigFromParamStore(region, path string, logger *zap.Logger) {
 
 	config = &Config{}
 
-	params, err := svc.GetParametersByPath(in)
+	pm := make(map[string]string)
+	err := svc.GetParametersByPathPages(in, func(params *ssm.GetParametersByPathOutput, lastPage bool) bool {
+		for _, p := range params.Parameters {
+			pm[strings.TrimPrefix(*p.Name, path)] = *p.Value
+		}
+		return !lastPage
+	})
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			logger.Fatal(
@@ -72,10 +78,6 @@ func LoadConfigFromParamStore(region, path string, logger *zap.Logger) {
 		}
 		return
 	} else {
-		pm := make(map[string]string)
-		for _, p := range params.Parameters {
-			pm[strings.TrimPrefix(*p.Name, path)] = *p.Value
-		}
 		cm := map[string]map[string]interface{}{}
 		for k, v := range pm {
 			ks := strings.Split(k, "/")
