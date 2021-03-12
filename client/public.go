@@ -454,3 +454,61 @@ func (p *Profile) UserExistsForEmail(ctx context.Context, token string, email st
 	*p = pr.P
 	return true, nil
 }
+
+func (p *Profile) PatchProfile(ctx context.Context, token string) error {
+	defer func() {
+		go clientTransport.CloseIdleConnections()
+	}()
+	conf := config.Current()
+	requestID := velacontext.GetContextRequestID(ctx)
+
+	body := map[string]Profile{
+		"user_profile": *p,
+	}
+	if len(p.ID) < 1 {
+		return errors.New("No ID to update")
+	}
+	if len(token) > 0 {
+		p.AccessToken = token
+	}
+	url := fmt.Sprintf("%s/api/v1/admin/user-profiles/%s", conf.Common.PublicBaseURI, p.ID)
+	jsonValue, _ := json.Marshal(body)
+	request, _ := http.NewRequest("PATCH", url, bytes.NewBuffer(jsonValue))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Add("X-Vela-Request-Id", requestID)
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", p.AccessToken))
+	response, err := apiClient.Do(request)
+	if err != nil || response == nil {
+		return err
+	}
+	var dat map[string]interface{}
+	data, _ := ioutil.ReadAll(response.Body)
+	if err = json.Unmarshal(data, &dat); err != nil {
+		return err
+	}
+	if response.StatusCode != http.StatusOK {
+		logger := velacontext.GetContextLogger(ctx)
+		logger.Info("Create profile error", zap.Any("response", dat))
+		var errResp HttpClientError
+		if err = json.Unmarshal(data, &errResp); err != nil {
+			return err
+		}
+		if errResp.Fields != nil && len(errResp.Fields) > 0 {
+			errMap := ErrorMap{}
+			for _, f := range errResp.Fields {
+				fn := strings.Split(f.Name, ":")
+				errMap.AppendErrorField(fn[len(fn)-1], f.Message)
+			}
+			return errMap
+		}
+		errResp.Path = url
+		return errResp
+	}
+	inner, _ := dat["user_profile"].(map[string]interface{})
+	consumerID, cidok := inner["id"].(string)
+	if !cidok || len(consumerID) == 0 {
+		return errors.New("Failed to aquire consumer ID")
+	}
+	p.ID = consumerID
+	return nil
+}
