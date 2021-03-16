@@ -455,6 +455,50 @@ func (p *Profile) UserExistsForEmail(ctx context.Context, token string, email st
 	return true, nil
 }
 
+// Returns false/error if not found or error
+// When found loads profile into p and returns true
+func (p *Profile) GetByID(ctx context.Context, token string, ID string) (bool, error) {
+	defer func() {
+		go clientTransport.CloseIdleConnections()
+	}()
+	conf := config.Current()
+	requestID := velacontext.GetContextRequestID(ctx)
+	url := fmt.Sprintf("%s/api/v1/admin/user-profiles/%s", conf.Common.PublicBaseURI, ID)
+	request, _ := http.NewRequest("GET", url, nil)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Add("X-Vela-Request-Id", requestID)
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	response, err := apiClient.Do(request)
+	if err != nil || response == nil {
+		return false, err
+	}
+	data, _ := ioutil.ReadAll(response.Body)
+	defer response.Body.Close()
+
+	if response.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+
+	if response.StatusCode != http.StatusOK {
+		var errResp HttpClientError
+		if err = json.Unmarshal(data, &errResp); err != nil {
+			return false, err
+		}
+		errResp.Path = url
+		return false, errResp
+	}
+
+	// otherwise we found them so unmarshall into class and return true
+	var pr ProfileResponse
+	if err = json.Unmarshal(data, &pr); err != nil {
+		return false, err
+	}
+
+	// assign the returned values into my profile struct
+	*p = pr.P
+	return true, nil
+}
+
 func (p *Profile) PatchProfile(ctx context.Context, token string) error {
 	defer func() {
 		go clientTransport.CloseIdleConnections()
@@ -513,55 +557,41 @@ func (p *Profile) PatchProfile(ctx context.Context, token string) error {
 	return nil
 }
 
-// DO WE NEED A GET USER BY ID????
-
-type Queue struct {
+type EventQueue struct {
+	ContactEmail     string      `json:"contact_email"`
+	CreatedAt        time.Time   `json:"created_at"`
+	DisplayName      string      `json:"display_name"`
+	UpdatedAt        time.Time   `json:"updated_at"`
+	CurrentWatermark int64       `json:"current_watermark"`
+	Description      string      `json:"description"`
+	EventTypes       []EventType `json:"event_types"`
+	ID               int64       `json:"id"`
+	MaximumRecords   int64       `json:"maximum_records"`
+	Status           string      `json:"status"`
+	OrganizationID   int64       `json:"organization_id"`
+	PartnerID        int64       `json:"partner_id"`
 	/*
-			{
-		  "queue": {
-		    "contact_email": "string",
-		    "created_at": "2021-03-12T20:48:31.506Z",
-		    "created_by": "string",
-		    "current_watermark": 0,
-		    "description": "string",
-		    "event_types": [
-		      {
-		        "avro_message_name": "string",
-		        "created_at": "2021-03-12T20:48:31.506Z",
-		        "created_by": 0,
-		        "display_name": "string",
-		        "id": 0,
-		        "slug": "string",
-		        "updated_at": "2021-03-12T20:48:31.506Z",
-		        "updated_by": 0
-		      }
-		    ],
-		    "id": 0,
-		    "last_sending_serial_number": 0,
-		    "maximum_records": 0,
-		    "organization_id": 0,
-		    "partner_id": 0,
-		    "status": "Created",
-		    "updated_at": "2021-03-12T20:48:31.506Z",
-		    "updated_by": "string"
-		  }
-		}
+					{
+				  "queue": {
+				    "organization_id": 0,
+				    "partner_id": 0,
+		\
+				  }
+				}
 	*/
 }
 
+type QueueResponse struct {
+	EQ EventQueue `json:"queue"`
+}
+
 type EventType struct {
-	/*
-		  {
-			"avro_message_name": "string",
-			"created_at": "2021-03-12T20:48:31.506Z",
-			"created_by": 0,
-			"display_name": "string",
-			"id": 0,
-			"slug": "string",
-			"updated_at": "2021-03-12T20:48:31.506Z",
-			"updated_by": 0
-		  }
-	*/
+	ID              int64     `json:"id"`
+	AvroMessageType string    `json:"avro_message_name"`
+	CreatedAt       time.Time `json:"created_at"`
+	DisplayName     string    `json:"display_name"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	Slug            string    `json:"slug"`
 }
 
 type EventResponse struct {
@@ -588,10 +618,46 @@ type Watermark struct {
 }
 
 //GET /api/v1/events/queue
+func GetQueue(ctx context.Context, token string) (*EventQueue, error) {
+	defer func() {
+		go clientTransport.CloseIdleConnections()
+	}()
+	conf := config.Current()
+	requestID := velacontext.GetContextRequestID(ctx)
+	url := fmt.Sprintf("%s/api/v1/events/queue", conf.Common.PublicBaseURI)
+	request, _ := http.NewRequest("GET", url, nil)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Add("X-Vela-Request-Id", requestID)
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	response, err := apiClient.Do(request)
+	if err != nil || response == nil {
+		return nil, err
+	}
+	data, _ := ioutil.ReadAll(response.Body)
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		var errResp HttpClientError
+		if err = json.Unmarshal(data, &errResp); err != nil {
+			return nil, err
+		}
+		errResp.Path = url
+		return nil, errResp
+	}
+
+	// otherwise we found them so unmarshall into class and return true
+	var q QueueResponse
+	if err = json.Unmarshal(data, &q); err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("Got Queue %#v \n\n", q.EQ)
+
+	return &q.EQ, nil
+}
 
 // GET /api/v1/events/queue/events
 func GetEventsForQueue(ctx context.Context, token string, maxRecords *int64, slugs []string) ([]Event, int64, error) {
-
 	defer func() {
 		go clientTransport.CloseIdleConnections()
 	}()
