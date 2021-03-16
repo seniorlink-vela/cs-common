@@ -570,15 +570,6 @@ type EventQueue struct {
 	Status           string      `json:"status"`
 	OrganizationID   int64       `json:"organization_id"`
 	PartnerID        int64       `json:"partner_id"`
-	/*
-					{
-				  "queue": {
-				    "organization_id": 0,
-				    "partner_id": 0,
-		\
-				  }
-				}
-	*/
 }
 
 type QueueResponse struct {
@@ -650,8 +641,6 @@ func GetQueue(ctx context.Context, token string) (*EventQueue, error) {
 	if err = json.Unmarshal(data, &q); err != nil {
 		return nil, err
 	}
-
-	fmt.Printf("Got Queue %#v \n\n", q.EQ)
 
 	return &q.EQ, nil
 }
