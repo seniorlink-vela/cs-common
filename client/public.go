@@ -480,6 +480,8 @@ func (p *Profile) GetByID(ctx context.Context, token string, ID string) (bool, e
 	}
 
 	if response.StatusCode != http.StatusOK {
+		logger := velacontext.GetContextLogger(ctx)
+		logger.Info("Get profile error", zap.Any("response", data))
 		var errResp HttpClientError
 		if err = json.Unmarshal(data, &errResp); err != nil {
 			return false, err
@@ -532,7 +534,7 @@ func (p *Profile) PatchProfile(ctx context.Context, token string) error {
 	}
 	if response.StatusCode != http.StatusOK {
 		logger := velacontext.GetContextLogger(ctx)
-		logger.Info("Create profile error", zap.Any("response", dat))
+		logger.Info("Patch profile error", zap.Any("response", dat))
 		var errResp HttpClientError
 		if err = json.Unmarshal(data, &errResp); err != nil {
 			return err
