@@ -667,7 +667,6 @@ func GetEventsForQueue(ctx context.Context, token string, maxRecords *int64, slu
 		}
 		url = fmt.Sprintf("%s%s%s", url, separator, slugParam)
 	}
-	fmt.Printf("URL IS %s \n\n", url)
 	request, _ := http.NewRequest("GET", url, nil)
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Add("X-Vela-Request-Id", requestID)
@@ -693,9 +692,6 @@ func GetEventsForQueue(ctx context.Context, token string, maxRecords *int64, slu
 	if err = json.Unmarshal(data, &er); err != nil {
 		return nil, 0, err
 	}
-
-	fmt.Printf("Got %d events\n\n", len(er.Events))
-	fmt.Printf("Got %d for watermark\n\n", er.LastReadIndex)
 
 	return er.Events, er.LastReadIndex, nil
 
