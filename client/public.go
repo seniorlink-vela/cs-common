@@ -630,6 +630,8 @@ func GetQueue(ctx context.Context, token string) (*EventQueue, error) {
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
+		logger := velacontext.GetContextLogger(ctx)
+		logger.Info("Get queue error", zap.Any("response", data))
 		var errResp HttpClientError
 		if err = json.Unmarshal(data, &errResp); err != nil {
 			return nil, err
@@ -681,6 +683,8 @@ func GetEventsForQueue(ctx context.Context, token string, maxRecords *int64, slu
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
+		logger := velacontext.GetContextLogger(ctx)
+		logger.Info("GetEvents error", zap.Any("response", data))
 		var errResp HttpClientError
 		if err = json.Unmarshal(data, &errResp); err != nil {
 			return nil, 0, err
