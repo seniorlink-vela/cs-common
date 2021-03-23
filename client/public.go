@@ -454,3 +454,299 @@ func (p *Profile) UserExistsForEmail(ctx context.Context, token string, email st
 	*p = pr.P
 	return true, nil
 }
+
+// Returns false/error if not found or error
+// When found loads profile into p and returns true
+func (p *Profile) GetByID(ctx context.Context, token string, ID string) (bool, error) {
+	defer func() {
+		go clientTransport.CloseIdleConnections()
+	}()
+	conf := config.Current()
+	requestID := velacontext.GetContextRequestID(ctx)
+	url := fmt.Sprintf("%s/api/v1/admin/user-profiles/%s", conf.Common.PublicBaseURI, ID)
+	request, _ := http.NewRequest("GET", url, nil)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Add("X-Vela-Request-Id", requestID)
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	response, err := apiClient.Do(request)
+	if err != nil || response == nil {
+		return false, err
+	}
+	data, _ := ioutil.ReadAll(response.Body)
+	defer response.Body.Close()
+
+	if response.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+
+	if response.StatusCode != http.StatusOK {
+		logger := velacontext.GetContextLogger(ctx)
+		logger.Info("Get profile error", zap.Any("response", data))
+		var errResp HttpClientError
+		if err = json.Unmarshal(data, &errResp); err != nil {
+			return false, err
+		}
+		errResp.Path = url
+		return false, errResp
+	}
+
+	// otherwise we found them so unmarshall into class and return true
+	var pr ProfileResponse
+	if err = json.Unmarshal(data, &pr); err != nil {
+		return false, err
+	}
+
+	// assign the returned values into my profile struct
+	*p = pr.P
+	return true, nil
+}
+
+func (p *Profile) PatchProfile(ctx context.Context, token string) error {
+	defer func() {
+		go clientTransport.CloseIdleConnections()
+	}()
+	conf := config.Current()
+	requestID := velacontext.GetContextRequestID(ctx)
+
+	body := map[string]Profile{
+		"user_profile": *p,
+	}
+	if len(p.ID) < 1 {
+		return errors.New("No ID to update")
+	}
+	if len(token) > 0 {
+		p.AccessToken = token
+	}
+	url := fmt.Sprintf("%s/api/v1/admin/user-profiles/%s", conf.Common.PublicBaseURI, p.ID)
+	jsonValue, _ := json.Marshal(body)
+	request, _ := http.NewRequest("PATCH", url, bytes.NewBuffer(jsonValue))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Add("X-Vela-Request-Id", requestID)
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", p.AccessToken))
+	response, err := apiClient.Do(request)
+	if err != nil || response == nil {
+		return err
+	}
+	var dat map[string]interface{}
+	data, _ := ioutil.ReadAll(response.Body)
+	if err = json.Unmarshal(data, &dat); err != nil {
+		return err
+	}
+	if response.StatusCode != http.StatusOK {
+		logger := velacontext.GetContextLogger(ctx)
+		logger.Info("Patch profile error", zap.Any("response", dat))
+		var errResp HttpClientError
+		if err = json.Unmarshal(data, &errResp); err != nil {
+			return err
+		}
+		if errResp.Fields != nil && len(errResp.Fields) > 0 {
+			errMap := ErrorMap{}
+			for _, f := range errResp.Fields {
+				fn := strings.Split(f.Name, ":")
+				errMap.AppendErrorField(fn[len(fn)-1], f.Message)
+			}
+			return errMap
+		}
+		errResp.Path = url
+		return errResp
+	}
+	inner, _ := dat["user_profile"].(map[string]interface{})
+	consumerID, cidok := inner["id"].(string)
+	if !cidok || len(consumerID) == 0 {
+		return errors.New("Failed to aquire consumer ID")
+	}
+	p.ID = consumerID
+	return nil
+}
+
+type EventQueue struct {
+	ContactEmail     string      `json:"contact_email"`
+	CreatedAt        time.Time   `json:"created_at"`
+	DisplayName      string      `json:"display_name"`
+	UpdatedAt        time.Time   `json:"updated_at"`
+	CurrentWatermark int64       `json:"current_watermark"`
+	Description      string      `json:"description"`
+	EventTypes       []EventType `json:"event_types"`
+	ID               int64       `json:"id"`
+	MaximumRecords   int64       `json:"maximum_records"`
+	Status           string      `json:"status"`
+	OrganizationID   int64       `json:"organization_id"`
+	PartnerID        int64       `json:"partner_id"`
+}
+
+type QueueResponse struct {
+	EQ EventQueue `json:"queue"`
+}
+
+type EventType struct {
+	ID              int64     `json:"id"`
+	AvroMessageType string    `json:"avro_message_name"`
+	CreatedAt       time.Time `json:"created_at"`
+	DisplayName     string    `json:"display_name"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	Slug            string    `json:"slug"`
+}
+
+type EventResponse struct {
+	Events        []Event `json:"events"`
+	LastReadIndex int64   `json:"last_read_index"`
+}
+
+type Event struct {
+	CreatedAt        time.Time              `json:"created_at"`
+	EventType        string                 `json:"event_type"`
+	EventTypeID      int64                  `json:"event_type_id"`
+	ID               int64                  `json:"id"`
+	MessageSource    string                 `json:"message_source"`
+	MessageTimestamp time.Time              `json:"message_timestamp"`
+	MessageUUID      string                 `json:"message_uuid"`
+	OrganizationID   int64                  `json:"organization_id"`
+	PartnerID        int64                  `json:"partner_id"`
+	Payload          map[string]interface{} `json:"payload"`
+}
+
+type Watermark struct {
+	LastReadIndex  int64 `json:"last_read_index"`
+	OrganizationID int64 `json:"organization_id,omitempty"`
+}
+
+//GET /api/v1/events/queue
+func GetQueue(ctx context.Context, token string) (*EventQueue, error) {
+	defer func() {
+		go clientTransport.CloseIdleConnections()
+	}()
+	conf := config.Current()
+	requestID := velacontext.GetContextRequestID(ctx)
+	url := fmt.Sprintf("%s/api/v1/events/queue", conf.Common.PublicBaseURI)
+	request, _ := http.NewRequest("GET", url, nil)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Add("X-Vela-Request-Id", requestID)
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	response, err := apiClient.Do(request)
+	if err != nil || response == nil {
+		return nil, err
+	}
+	data, _ := ioutil.ReadAll(response.Body)
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		logger := velacontext.GetContextLogger(ctx)
+		logger.Info("Get queue error", zap.Any("response", data))
+		var errResp HttpClientError
+		if err = json.Unmarshal(data, &errResp); err != nil {
+			return nil, err
+		}
+		errResp.Path = url
+		return nil, errResp
+	}
+
+	// otherwise we found them so unmarshall into class and return true
+	var q QueueResponse
+	if err = json.Unmarshal(data, &q); err != nil {
+		return nil, err
+	}
+
+	return &q.EQ, nil
+}
+
+// GET /api/v1/events/queue/events
+func GetEventsForQueue(ctx context.Context, token string, maxRecords *int64, slugs []string) ([]Event, int64, error) {
+	defer func() {
+		go clientTransport.CloseIdleConnections()
+	}()
+	conf := config.Current()
+	requestID := velacontext.GetContextRequestID(ctx)
+	url := fmt.Sprintf("%s/api/v1/events/queue/events", conf.Common.PublicBaseURI)
+	foundMax := false
+	if maxRecords != nil {
+		foundMax = true
+		url = fmt.Sprintf("%s?max_records=%d", url, *maxRecords)
+	}
+	if len(slugs) > 0 {
+		slugStr := strings.Join(slugs, ",")
+		slugParam := fmt.Sprintf("event_type_slugs=%s", slugStr)
+		separator := "?"
+		if foundMax {
+			separator = "&"
+		}
+		url = fmt.Sprintf("%s%s%s", url, separator, slugParam)
+	}
+	request, _ := http.NewRequest("GET", url, nil)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Add("X-Vela-Request-Id", requestID)
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	response, err := apiClient.Do(request)
+	if err != nil || response == nil {
+		return nil, 0, err
+	}
+	data, _ := ioutil.ReadAll(response.Body)
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		logger := velacontext.GetContextLogger(ctx)
+		logger.Info("GetEvents error", zap.Any("response", data))
+		var errResp HttpClientError
+		if err = json.Unmarshal(data, &errResp); err != nil {
+			return nil, 0, err
+		}
+		errResp.Path = url
+		return nil, 0, errResp
+	}
+
+	// otherwise we found them so unmarshall into class and return true
+	var er EventResponse
+	if err = json.Unmarshal(data, &er); err != nil {
+		return nil, 0, err
+	}
+
+	return er.Events, er.LastReadIndex, nil
+
+}
+
+// PUT /api/v1/events/queue/watermark
+func SetWatermarkForQueue(ctx context.Context, token string, watermark int64) error {
+
+	defer func() {
+		go clientTransport.CloseIdleConnections()
+	}()
+	conf := config.Current()
+	requestID := velacontext.GetContextRequestID(ctx)
+	url := fmt.Sprintf("%s/api/v1/events/queue/watermark", conf.Common.PublicBaseURI)
+	w := Watermark{
+		LastReadIndex: watermark,
+	}
+
+	jsonValue, _ := json.Marshal(w)
+	request, _ := http.NewRequest("PUT", url, bytes.NewBuffer(jsonValue))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Add("X-Vela-Request-Id", requestID)
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	response, err := apiClient.Do(request)
+	if err != nil || response == nil {
+		return err
+	}
+	var dat map[string]interface{}
+	data, _ := ioutil.ReadAll(response.Body)
+	if err = json.Unmarshal(data, &dat); err != nil {
+		return err
+	}
+	if response.StatusCode != http.StatusOK {
+		logger := velacontext.GetContextLogger(ctx)
+		logger.Info("Setting Watermark error", zap.Any("response", dat))
+		var errResp HttpClientError
+		if err = json.Unmarshal(data, &errResp); err != nil {
+			return err
+		}
+		if errResp.Fields != nil && len(errResp.Fields) > 0 {
+			errMap := ErrorMap{}
+			for _, f := range errResp.Fields {
+				fn := strings.Split(f.Name, ":")
+				errMap.AppendErrorField(fn[len(fn)-1], f.Message)
+			}
+			return errMap
+		}
+		errResp.Path = url
+		return errResp
+	}
+	return nil
+}
