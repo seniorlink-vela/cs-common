@@ -41,6 +41,11 @@ func (em ErrorMap) Error() string {
 	return fmt.Sprintf("%#v", em)
 }
 
+type CaregiverCreate struct {
+	ID      string
+	Primary bool
+}
+
 func Init(maxIdle int, idleTimeout, clientTimeout time.Duration) {
 	clientTransport = &http.Transport{
 		DisableKeepAlives: true,
@@ -369,7 +374,7 @@ func (p *Profile) AddProfessionals(ctx context.Context, careTeamID string, proID
 	return nil
 }
 
-func (p *Profile) AddCareGiversToCareTeam(ctx context.Context, careTeamID string, cgIDs []string) error {
+func (p *Profile) AddCareGiversToCareTeam(ctx context.Context, careTeamID string, cgs []CaregiverCreate) error {
 	defer func() {
 		go clientTransport.CloseIdleConnections()
 	}()
@@ -377,10 +382,14 @@ func (p *Profile) AddCareGiversToCareTeam(ctx context.Context, careTeamID string
 	requestID := velacontext.GetContextRequestID(ctx)
 
 	url := fmt.Sprintf("%s/api/v1/admin/care-teams/%s/member", conf.Common.PublicBaseURI, careTeamID)
-	newMemberTmpl := `{"member":{"user_id": "%s", "owner_type": "Caregiver"}}`
+	newMemberTmpl := `{"member":{"user_id": "%s", "owner_type": "Caregiver", "rank": %d}}`
 
-	for _, proID := range cgIDs {
-		jsonStr := fmt.Sprintf(newMemberTmpl, proID)
+	for _, cg := range cgs {
+		rank := 1
+		if cg.Primary {
+			rank = 0
+		}
+		jsonStr := fmt.Sprintf(newMemberTmpl, cg.ID, rank)
 
 		request, rerr := http.NewRequest("POST", url, bytes.NewBuffer([]byte(jsonStr)))
 		if rerr != nil {
