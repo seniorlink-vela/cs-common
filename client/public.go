@@ -110,7 +110,7 @@ type Profile struct {
 	AccessToken          string            `json:"-"`
 	Landing              string            `json:"landing" validation:"required"`
 	Program              string            `json:"program" validation:"required"`
-	Extensions           *[]*ExtensionData `json:"extensions,omitempty" sub-key:"-"`
+	Extensions           *[]*ExtensionData `json:"extensions,omitempty"`
 }
 
 type ExtensionData struct {
