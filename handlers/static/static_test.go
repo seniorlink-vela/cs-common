@@ -69,8 +69,8 @@ func TestHandleStaticALB(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, r)
-		// adding skip here since github is failing this and no one can produce locally
-		t.Skip("Skipping test because github action throws an error we cannot reproduce")
+
+		t.Skip("This seems to fail on github actions, we don't know why yet")
 		assert.True(t, r.IsBase64Encoded)
 		assert.Equal(t, mime.TypeByExtension(".js"), r.Headers["Content-Type"])
 	})
