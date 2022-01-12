@@ -110,6 +110,26 @@ type Profile struct {
 	AccessToken          string            `json:"-"`
 	Landing              string            `json:"landing" validation:"required"`
 	Program              string            `json:"program" validation:"required"`
+	Extensions           *[]*ExtensionData `json:"extensions,omitempty" sub-key:"-"`
+}
+
+type ExtensionData struct {
+	ID          int64                       `json:"extension_id" validate:"required"`
+	Name        string                      `json:"name"`
+	Description string                      `json:"description"`
+	Values      []*ObjectExtensionDataValue `json:"values"`
+}
+
+type ObjectExtensionDataValue struct {
+	ExtensionID        int64       `json:"extension_id"`
+	FieldQualifiedName string      `json:"field_qualified_name"`
+	FieldValue         interface{} `json:"value"`
+	Repeating          Repeating   `json:"repeating"`
+}
+
+type Repeating struct {
+	Index  int  `json:"index"`
+	Hidden bool `json:"hidden"`
 }
 
 type ProfileResponse struct {
