@@ -110,6 +110,10 @@ type Profile struct {
 	AccessToken          string            `json:"-"`
 	Landing              string            `json:"landing" validation:"required"`
 	Program              string            `json:"program" validation:"required"`
+	CreatedAt            *time.Time        `json:"created_at,omitempty"`
+	UpdatedAt            *time.Time        `json:"updated_at,omitempty"`
+	CreatedBy            *string           `json:"created_by,omitempty"`
+	UpdatedBy            *string           `json:"updated_by,omitempty"`
 	Extensions           *[]*ExtensionData `json:"extensions,omitempty"`
 }
 
